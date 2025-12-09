@@ -16,13 +16,15 @@ This project compiles a subset of JavaScript (integers, variables, functions, `i
 
 *   **Const Correctness**: The compiler enforces immutability for `const` variables. Reassigning a `const` variable will cause a compile-time error.
 *   **Constant Folding**: Simple arithmetic operations on literals (e.g., `2 + 3 * 4`) are evaluated at compile-time, optimizing the generated WebAssembly code.
+*   **Enhanced Error Reporting**: The compiler tracks line and column numbers to provide precise error messages (e.g., `Error at line 5, column 10: Expected ';'`).
+*   **Integration Tests**: A comprehensive test suite (`cargo test`) verifies the compiler against various language constructs.
 
 ## Architecture
 
 The compiler follows a standard 3-stage pipeline:
 
-1.  **Lexer (`src/lexer.rs`)**: Converts raw source code into a stream of `Token`s. Handles whitespace skipping, multi-character operators (`==`, `<=`), and comments.
-2.  **Parser (`src/parser.rs`)**: Consumes tokens to build an **Abstract Syntax Tree (AST)**. Uses "Precedence Climbing" to correctly handle operator precedence (e.g., `*` before `+`).
+1.  **Lexer (`src/lexer.rs`)**: Converts raw source code into a stream of `SpannedToken`s. Handles whitespace skipping, multi-character operators (`==`, `<=`), comments, and tracks line/column numbers.
+2.  **Parser (`src/parser.rs`)**: Consumes tokens to build an **Abstract Syntax Tree (AST)**. Uses "Precedence Climbing" to correctly handle operator precedence (e.g., `*` before `+`) and reports precise errors.
 3.  **Code Generator (`src/codegen.rs`)**: Traverses the AST and emits WebAssembly Text.
     *   **Pass 1**: Scans for variable declarations to define all WASM locals at the top of the function.
     *   **Pass 2**: Emits stack machine instructions. Handles variable shadowing by maintaining a stack of symbol tables.

@@ -1,18 +1,19 @@
-use crate::token::Token;
-
+use crate::token::{Token, SpannedToken, Span};
 
 pub struct Lexer {
     input: Vec<char>,
     pos: usize,
+    line: usize,
+    column: usize,
 }
-
-
 
 impl Lexer {
     pub fn new(input: &str) -> Self {
         Lexer {
             input: input.chars().collect(),
             pos: 0,
+            line: 1,
+            column: 1,
         }
     }
 
@@ -27,8 +28,14 @@ impl Lexer {
     // Move forward one char
     fn advance(&mut self) -> Option<char> {
         let c = self.peek();
-        if c.is_some() {
+        if let Some(ch) = c {
             self.pos += 1;
+            if ch == '\n' {
+                self.line += 1;
+                self.column = 1;
+            } else {
+                self.column += 1;
+            }
         }
         c
     }
@@ -43,15 +50,21 @@ impl Lexer {
         }
     }
 
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> SpannedToken {
         self.skip_whitespace();
+
+        let start_line = self.line;
+        let start_column = self.column;
 
         let c = match self.advance() {
             Some(c) => c,
-            None => return Token::EOF,
+            None => return SpannedToken {
+                token: Token::EOF,
+                span: Span::new(start_line, start_column),
+            },
         };
 
-        match c {
+        let token = match c {
             // Single-char delimiters
             '(' => Token::LParen,
             ')' => Token::RParen,
@@ -72,7 +85,7 @@ impl Lexer {
                         if c == '\n' { break; }
                         self.advance();
                     }
-                    self.next_token() // Recursively get next real token
+                    return self.next_token(); // Recursively get next real token
                 } else {
                     Token::Slash
                 }
@@ -90,7 +103,12 @@ impl Lexer {
             // Identifiers & Keywords
             'a'..='z' | 'A'..='Z' | '_' => self.read_identifier(c),
 
-            _ => panic!("Unexpected character: {}", c),
+            _ => panic!("Unexpected character '{}' at line {}, column {}", c, start_line, start_column),
+        };
+
+        SpannedToken {
+            token,
+            span: Span::new(start_line, start_column),
         }
     }
 
@@ -132,11 +150,12 @@ impl Lexer {
 
     // Check if next char matches expected, consume if yes
     fn match_char(&mut self, expected: char) -> bool {
-        if let Some(c) = self.peek()
-            && c == expected {
+        if let Some(c) = self.peek() {
+            if c == expected {
                 self.advance();
                 return true;
             }
+        }
         false
     }
 }
