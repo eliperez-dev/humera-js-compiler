@@ -1,27 +1,19 @@
 
-pub enum Token {
+mod lexer;
+mod token;
+mod ast;
+mod parser;
 
-    // Key words
-    Let, Const, If, Else, While,
-    Function, Return,
-
-    // Delimiters
-    LParen, RParen,   // ( )
-    LBrace, RBrace,   // { }
-    Comma, Semi,      // , ;
-
-    // Operators
-    Plus, Minus, Star, Slash, Percent, //  + - * / %
-    Eq, EqEQ, Bang, BangEq,            //  = == ! !=
-    Lt, LtEq, Gt, GtEq,                //  < <= > >=
-
-    // EOF
-    EOF
-}
-
-
+use crate::lexer::Lexer;
+use crate::parser::Parser;
 
 fn main() {
-    let contents = std::fs::read_to_string("example.txt").unwrap();
-    println!("File Contents:\n{}", contents);
-}
+    let input = std::fs::read_to_string("programs\\factorial.js").unwrap();
+    println!("File Contents:\n{}", input);
+
+    let lexer = Lexer::new(&input); 
+    let mut parser = Parser::new(lexer);
+    let program = parser.parse_program();
+    
+    println!("AST:\n{:#?}", program);
+} 
