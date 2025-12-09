@@ -18,7 +18,7 @@ impl Lexer {
 
     pub fn peek(&self) -> Option<char> {
         if self.pos >= self.input.len() {
-            return None
+            None
         } else {
             Some(self.input[self.pos])
         }
@@ -132,12 +132,11 @@ impl Lexer {
 
     // Check if next char matches expected, consume if yes
     fn match_char(&mut self, expected: char) -> bool {
-        if let Some(c) = self.peek() {
-            if c == expected {
+        if let Some(c) = self.peek()
+            && c == expected {
                 self.advance();
                 return true;
             }
-        }
         false
     }
 }

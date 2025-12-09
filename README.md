@@ -12,6 +12,11 @@ This project compiles a subset of JavaScript (integers, variables, functions, `i
 *   **Function Hoisting**: Supports top-level function declarations and calls.
 *   **Zero Dependencies**: Built using only the Rust standard library.
 
+### Bonus Features
+
+*   **Const Correctness**: The compiler enforces immutability for `const` variables. Reassigning a `const` variable will cause a compile-time error.
+*   **Constant Folding**: Simple arithmetic operations on literals (e.g., `2 + 3 * 4`) are evaluated at compile-time, optimizing the generated WebAssembly code.
+
 ## Architecture
 
 The compiler follows a standard 3-stage pipeline:
@@ -85,7 +90,7 @@ cargo run programs/ackermann.js
 ## Supported Language Subset
 
 *   **Types**: 32-bit signed integers (`i32`) only.
-*   **Variables**: `let` and `const` (block-scoped).
+*   **Variables**: `let` (mutable) and `const` (immutable, enforced).
 *   **Control Flow**: `if`, `else`, `while`, `return`.
 *   **Functions**: Declarations and calls.
 *   **Operators**: `+`, `-`, `*`, `/`, `%`, `==`, `!=`, `<`, `>`, `<=`, `>=`.

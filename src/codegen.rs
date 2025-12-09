@@ -3,10 +3,16 @@ use std::collections::HashMap;
 
 pub struct CodeGenerator {
     output: String,
-    // Stack of scopes. Each scope maps "JS name" -> "WASM name"
-    scopes: Vec<HashMap<String, String>>, 
+    // Stack of scopes. Each scope maps "JS name" -> ("WASM name", is_const)
+    scopes: Vec<HashMap<String, (String, bool)>>, 
     local_counter: usize,
     label_counter: usize,
+}
+
+impl Default for CodeGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CodeGenerator {
@@ -27,21 +33,21 @@ impl CodeGenerator {
         self.scopes.pop();
     }
 
-    fn declare_local(&mut self, name: &str) -> String {
+    fn declare_local(&mut self, name: &str, is_const: bool) -> String {
         let wasm_name = format!("${}_{}", name, self.local_counter);
         self.local_counter += 1;
         
         if let Some(scope) = self.scopes.last_mut() {
-            scope.insert(name.to_string(), wasm_name.clone());
+            scope.insert(name.to_string(), (wasm_name.clone(), is_const));
         }
         wasm_name
     }
 
-    fn get_local(&self, name: &str) -> Option<String> {
+    fn get_local(&self, name: &str) -> Option<(String, bool)> {
         // Search from inner-most scope to outer-most
         for scope in self.scopes.iter().rev() {
-            if let Some(wasm_name) = scope.get(name) {
-                return Some(wasm_name.clone());
+            if let Some(info) = scope.get(name) {
+                return Some(info.clone());
             }
         }
         None
@@ -120,7 +126,7 @@ impl CodeGenerator {
             
             // Add to scope
             if let Some(scope) = self.scopes.last_mut() {
-                scope.insert(param.clone(), wasm_name);
+                scope.insert(param.clone(), (wasm_name, false)); // Params are mutable
             }
         }
         self.output.push_str("(result i32)\n");
@@ -148,8 +154,8 @@ impl CodeGenerator {
         let mut locals = Vec::new();
         for stmt in stmts {
             match stmt {
-                Statement::VariableDeclaration { name, .. } => {
-                    let wasm_name = self.declare_local(name);
+                Statement::VariableDeclaration { name, is_const, .. } => {
+                    let wasm_name = self.declare_local(name, *is_const);
                     locals.push(wasm_name);
                 }
                 Statement::Block(inner) => {
@@ -160,11 +166,10 @@ impl CodeGenerator {
                     if let Statement::Block(b) = &**then_branch {
                         locals.extend(self.collect_locals(b));
                     }
-                    if let Some(else_b) = else_branch {
-                        if let Statement::Block(b) = &**else_b {
+                    if let Some(else_b) = else_branch
+                        && let Statement::Block(b) = &**else_b {
                             locals.extend(self.collect_locals(b));
                         }
-                    }
                 }
                 Statement::While { body, .. } => {
                     if let Statement::Block(b) = &**body {
@@ -181,7 +186,7 @@ impl CodeGenerator {
         match stmt {
             Statement::VariableDeclaration { name, init, .. } => {
                 self.generate_expression(init);
-                let wasm_name = self.get_local(name).expect("Local not found (should be declared in pre-pass)");
+                let (wasm_name, _) = self.get_local(name).expect("Local not found (should be declared in pre-pass)");
                 self.output.push_str(&format!("    local.set {}\n", wasm_name));
             }
             Statement::Expression(expr) => {
@@ -248,10 +253,29 @@ impl CodeGenerator {
                 self.output.push_str(&format!("    i32.const {}\n", n));
             }
             Expression::Identifier(name) => {
-                let wasm_name = self.get_local(name).expect(&format!("Undefined variable: {}", name));
+                let (wasm_name, _) = self.get_local(name).unwrap_or_else(|| panic!("Undefined variable: {}", name));
                 self.output.push_str(&format!("    local.get {}\n", wasm_name));
             }
             Expression::Binary(left, op, right) => {
+                // Constant Folding Optimization
+                if let (Expression::Number(l), Expression::Number(r)) = (&**left, &**right) {
+                    let result = match op {
+                        BinaryOp::Add => l.wrapping_add(*r),
+                        BinaryOp::Sub => l.wrapping_sub(*r),
+                        BinaryOp::Mul => l.wrapping_mul(*r),
+                        BinaryOp::Div => if *r != 0 { l.wrapping_div(*r) } else { 0 }, // Avoid panic
+                        BinaryOp::Mod => if *r != 0 { l.wrapping_rem(*r) } else { 0 },
+                        BinaryOp::Eq => if l == r { 1 } else { 0 },
+                        BinaryOp::Ne => if l != r { 1 } else { 0 },
+                        BinaryOp::Lt => if l < r { 1 } else { 0 },
+                        BinaryOp::Gt => if l > r { 1 } else { 0 },
+                        BinaryOp::Le => if l <= r { 1 } else { 0 },
+                        BinaryOp::Ge => if l >= r { 1 } else { 0 },
+                    };
+                    self.output.push_str(&format!("    i32.const {}\n", result));
+                    return;
+                }
+
                 self.generate_expression(left);
                 self.generate_expression(right);
                 match op {
@@ -270,10 +294,15 @@ impl CodeGenerator {
             }
             Expression::Assignment(name, value) => {
                 self.generate_expression(value);
-                let wasm_name = self.get_local(name).expect(&format!("Undefined variable: {}", name));
+                let (wasm_name, is_const) = self.get_local(name).unwrap_or_else(|| panic!("Undefined variable: {}", name));
+                
+                if is_const {
+                    panic!("Assignment to constant variable '{}'", name);
+                }
+
                 self.output.push_str("    local.tee "); // tee sets the local AND leaves value on stack
                 self.output.push_str(&wasm_name);
-                self.output.push_str("\n");
+                self.output.push('\n');
             }
             Expression::Call(name, args) => {
                 for arg in args {

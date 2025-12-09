@@ -1,15 +1,6 @@
-
-mod lexer;
-mod token;
-mod ast;
-mod parser;
-mod codegen;
-
-use crate::lexer::Lexer;
-use crate::parser::Parser;
-use crate::codegen::CodeGenerator;
 use std::env;
 use std::process;
+use humera_js_compiler::compile;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -26,15 +17,8 @@ fn main() {
 
     println!("Compiling {}...", filename);
 
-    let lexer = Lexer::new(&input); 
-    let mut parser = Parser::new(lexer);
-    let program = parser.parse_program();
-
-    let mut codegen = CodeGenerator::new();
-    let wat = codegen.generate(&program);
-    
-    // println!("\nGenerated WAT:\n{}", wat);
+    let wat = compile(&input);
     
     std::fs::write("output.wat", wat).unwrap();
     println!("Successfully wrote output.wat");
-} 
+}
