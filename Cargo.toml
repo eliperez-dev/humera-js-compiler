@@ -1,0 +1,6 @@
+[package]
+name = "humera-js-compiler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
