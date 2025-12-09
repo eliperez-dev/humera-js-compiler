@@ -140,8 +140,4 @@ impl Lexer {
         }
         false
     }
-
-    pub fn get_token_from_char() {
-
-    }
 }
