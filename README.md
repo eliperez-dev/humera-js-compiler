@@ -1,4 +1,4 @@
-# Humera JS Compiler
+# JS Compiler
 
 A minimal JavaScript to WebAssembly (WAT) compiler written in Rust.
 
